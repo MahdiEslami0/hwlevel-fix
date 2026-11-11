@@ -1,0 +1,6 @@
+id=hwlevel_p0_override
+name=hwlevel P0 Override (ENVSIGERR / No Signal Fix)
+version=v1.0
+versionCode=1
+author=mahdi
+description=Overrides ro.boot.hwlevel from MP to P0 at boot, letting the MediaTek modem skip the signed-critical-data check that causes AT+EFUN / +ENVSIGERR failures and "no signal" after an NVRAM/proinfo wipe. See README for details.
