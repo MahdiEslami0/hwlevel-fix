@@ -4,24 +4,44 @@ A Magisk module that fixes "no signal" / radio stuck off on MediaTek-based
 Xiaomi phones after an `nvram` / `proinfo` wipe, by overriding
 `ro.boot.hwlevel` from `MP` to `P0` at boot.
 
-Confirmed on: **Redmi Note 11 Pro 4G ("viva"), MT6781/Helio G96, MIUI
-13 (Android 12), unlocked bootloader, rooted with Magisk.** The same
-root cause pattern (`ro.boot.hwlevel=MP` + wiped NVRAM) has been reported
-on other Xiaomi MediaTek devices too (see [Prior art](#prior-art)), but the
-fix has only been tested end-to-end on the device above — read
-[Will this work on my device?](#will-this-work-on-my-device) before relying
-on it.
+## Tested device and exact state
 
-## Symptom
+| | |
+|---|---|
+| Device | Xiaomi Redmi Note 11 Pro 4G |
+| Codename | `viva` |
+| Model number | 2201116TG |
+| SoC | MediaTek MT6781 (Helio G96) |
+| ROM | MIUI V13.0.6.0.SGDMIXM, Android 12 |
+| Baseband | `MOLY.LR13.R2.MP.V16.3.P52` / `...V16.3.P77` |
+| Bootloader | Unlocked (`ro.boot.flash.locked=0`, `ro.boot.vbmeta.device_state=unlocked`) |
+| Root | Magisk |
+| `ro.boot.hwlevel` before fix | `MP` |
 
-- The phone was repaired / had its `nvram`, `proinfo`, `sec1` or
-  `countrycode` partitions wiped (commonly by a repair tool that formatted
-  the wrong partition, or by a bad flash).
-- IMEI may or may not show up in `*#06#` / Settings, but there is **no
-  cellular signal at all**, and it never recovers no matter how many times
-  you toggle airplane mode or reboot.
-- `adb logcat -b radio` shows the modem rejecting every radio-power
-  request:
+**How it broke:** a third-party repair tool formatted the wrong eMMC/UFS
+partitions while attempting an unrelated repair, wiping `nvram`,
+`proinfo`, `sec1` and `countrycode`. Everything else (`md1img`, `lk`,
+`preloader`, `tee`, `boot`, `vendor`, `system`, `nvdata`, `nvcfg`,
+`protect1`, `protect2`) was untouched and byte-identical to stock. This
+module does **not** repair the wiped partitions themselves — it works
+around the one specific consequence of that wipe described below.
+
+**State immediately before applying this module** (the exact symptom this
+module targets — confirm your device matches before trying it):
+
+- `*#06#` / `service call iphonesubinfo 1` return a valid 15-digit IMEI
+  (this had already been separately restored on the test device; this
+  module assumes IMEI already works — if IMEI itself shows blank/zero,
+  that is a *different* NV problem and this module alone will not fix it).
+- `getprop gsm.sim.state` → `LOADED,ABSENT` (SIM is read correctly).
+- `getprop vendor.mtk.md1.status` → `ready` (modem subsystem itself is up,
+  not crashed).
+- `dumpsys telephony.registry` → `mVoiceRegState=3(POWER_OFF)`,
+  `mRadioPowerState=0`, for both SIM slots, permanently — toggling
+  airplane mode on/off, or rebooting, never changes this.
+- `getprop ro.boot.hwlevel` → `MP`.
+- `adb logcat -b radio`, triggered by any radio-power request (e.g.
+  toggling airplane mode), shows this exact exchange on a loop, forever:
 
   ```
   AT> AT+EFUN=1
@@ -30,7 +50,24 @@ on it.
   RmcOemUrcHandler: recovery mode because of not factory mode:+ENVSIGERR: 1
   ```
 
-- `getprop ro.boot.hwlevel` reports `MP` (mass production / retail).
+**State immediately after installing this module and rebooting** (same
+device, same SIM, nothing else changed):
+
+- `getprop ro.boot.hwlevel` → `P0`.
+- `adb logcat -b radio` on the next radio-power request shows `AT+EFUN=1`
+  followed by `OK` instead of `ERROR` / `+ENVSIGERR: 1`.
+- `dumpsys telephony.registry` moves `mRadioPowerState` away from `0` and
+  `mVoiceRegState`/`mDataRegState` out of `POWER_OFF`; the device attaches
+  to the carrier network and shows signal bars normally.
+- No other visible change: same IMEI, same installed apps/data, no
+  partitions were flashed.
+
+The same root-cause pattern (`ro.boot.hwlevel=MP` refusing to run without
+factory-signed NV data, after that data was wiped) has been reported on
+other Xiaomi/MediaTek devices too (see [Prior art](#prior-art)), but this
+exact module has only been run end-to-end on the device/state above — read
+[Will this work on my device?](#will-this-work-on-my-device) before
+relying on it on anything else.
 
 ## Root cause
 
