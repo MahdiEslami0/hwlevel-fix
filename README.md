@@ -32,7 +32,9 @@ module targets — confirm your device matches before trying it):
 - `*#06#` / `service call iphonesubinfo 1` return a valid 15-digit IMEI
   (this had already been separately restored on the test device; this
   module assumes IMEI already works — if IMEI itself shows blank/zero,
-  that is a *different* NV problem and this module alone will not fix it).
+  that is a *different* NV problem and this module alone will not fix it.
+  See [`docs/imei-fix.md`](docs/imei-fix.md) for what fixed that on this
+  device).
 - `getprop gsm.sim.state` → `LOADED,ABSENT` (SIM is read correctly).
 - `getprop vendor.mtk.md1.status` → `ready` (modem subsystem itself is up,
   not crashed).
